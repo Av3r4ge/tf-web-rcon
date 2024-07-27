@@ -14,7 +14,6 @@ const db = mongoose.connection
 
 const User = require('./user')
 const Log = require('./logging')
-
 const rcon = require('./rcon_request')
 
 app.set("view engine", "ejs");
@@ -36,7 +35,6 @@ passport.serializeUser(User.serializeUser())
 passport.deserializeUser(User.deserializeUser())
 app.use(passport.initialize())
 app.use(passport.session());
-
 
 function isAuthed(req, res, next) {
     if (req.isAuthenticated()) { 
@@ -67,8 +65,14 @@ app.get('/login', isNotAuthed, (req, res) => {
     res.render('login', {status: req.flash('login_status')})
 })
 
-app.get('/users', isAuthed, (req, res) => {
-    res.render('users')
+// todo: change the way we're loading users. Ideally don't load all of them!
+app.get('/users', isAuthed, async (req, res) => {
+    await User.find().then(users => {
+        res.render('users', {name: req.user.username, type: req.user.type, users: users})
+    }).catch(err => {
+        console.log(err)
+        res.render('users', {name: req.user.username, type: req.user.type, users: []})
+    })
 })
 
 app.get('/logs', isAuthed, (req, res) => {
@@ -90,6 +94,7 @@ app.post('/register', function (req, res) {
         }
     )
 })
+
 
 app.post('/login', passport.authenticate('local', { 
     failureRedirect: '/login-failure', 
@@ -156,15 +161,6 @@ app.post('/send-command', async (req, res, next) => {
 
     } else {
         res.json({ message: 'You are not authenticated' })
-    }
-})
-
-app.get('/profile', function(req, res) {
-    console.log(req.session)
-    if (req.isAuthenticated()) {
-      res.json({ message: req.user.type })
-    } else {
-      res.json({ message: 'You are not authenticated' })
     }
 })
 
