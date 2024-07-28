@@ -6,9 +6,9 @@
     "start": "node app.js",
     "_devstart": "nodemon app.js"
   },
-  "author": "",
+  "author": "avg",
   "license": "ISC",
-  "description": "",
+  "description": "Web based RCON with user Authentication",
   "dependencies": {
     "bootstrap": "^5.3.3",
     "connect-mongo": "^5.1.0",
@@ -23,7 +23,6 @@
     "rcon": "^1.1.0"
   },
   "devDependencies": {
-    "dotenv": "^16.4.5",
     "nodemon": "^3.1.4"
   }
 }
