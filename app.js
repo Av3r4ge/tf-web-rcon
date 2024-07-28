@@ -1,27 +1,47 @@
-require("dotenv").config()
-
-const express = require('express');
+const express = require('express')
 const session = require('express-session')
 const passport = require('passport')
-const app = express();
+const crypto = require("crypto")
 const flash = require('express-flash')
+const app = express()
 
 // mongo
 const Mongo = require('connect-mongo')
 const mongoose = require('mongoose')
-mongoose.connect(process.env.URI)
+mongoose.connect("mongodb://mongo:27017/docker-node-mongo")
 const db = mongoose.connection
 
 const User = require('./user')
 const Log = require('./logging')
 const rcon = require('./rcon_request')
+const perms = require('./permissions')
 
-app.set("view engine", "ejs");
+function GenKey(length) {
+    let generatedKey = "";
+
+    const validChars = "0123456789" +
+        "abcdefghijklmnopqrstuvwxyz" +
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
+        ",.-{}+!\"#$%/()=?";
+
+    for (let i = 0; i < length; i++) {
+        let randomNumber = crypto.getRandomValues(new Uint32Array(1))[0]
+        randomNumber = randomNumber / 0x100000000;
+        randomNumber = Math.floor(randomNumber * validChars.length)
+
+        generatedKey += validChars[randomNumber]
+    }
+ 
+
+    return generatedKey
+}
+
+app.set("view engine", "ejs")
 app.use(flash())
 app.use(express.urlencoded({extended: true}))
-app.use(express.static(__dirname + '/node_modules/bootstrap/dist'));
+app.use(express.static(__dirname + '/node_modules/bootstrap/dist'))
 app.use(session({
-    secret: process.env.EXPRESS_SECRET,
+    secret: GenKey(128),
     resave: false,
     saveUninitialized: true,
     store: new Mongo({ mongoUrl: db.client.s.url })
@@ -80,19 +100,31 @@ app.get('/logs', isAuthed, (req, res) => {
 })
 
 // todo make authenticate!
-app.post('/register', function (req, res) {
-    console.log(req.body)
-    User.register(
-        new User( {username: req.body.username, type: req.body.type} ),
-        req.body.password,
-        function (err, msg) {
-            if (err) {
-                res.send(err)
-            } else {
-                res.send({ message: "Successful" })
-            }
+app.post('/account/register', function (req, res) {
+
+    if (req.isAuthenticated()) {
+        const authLevel = perms.AuthLevel(req.user.type)
+        
+        console.log(authLevel)
+
+        if ( authLevel >= 3 ) {
+            User.register(
+                new User( {username: req.body.username, type: req.body.type} ),
+                req.body.password,
+                function (err, msg) {
+                    if (err) {
+                        res.send(err)
+                    } else {
+                        res.redirect('/')
+                    }
+                }
+            )
         }
-    )
+
+    } else {
+        res.json({ message: 'You are not authenticated' })
+    }
+
 })
 
 
@@ -119,8 +151,15 @@ app.get('/login-failure', (req, res, next) => {
 
 app.post('/send-command', async (req, res, next) => {
     if (req.isAuthenticated()) {
+
+        if ( !rcon.isAuthed ) {
+            req.flash('console_response', "[ERROR] RCON is not authed, please check if configuration is correct")
+            res.redirect('/')
+            return
+        }
+
         var cmd = rcon.GetCommand(req.body.command)
-        var auth = rcon.AuthLevel(req.user.type)
+        var auth = perms.AuthLevel(req.user.type)
 
         if ( auth < cmd.level ) {
             res.json({ message: 'You are not authorized to run this command' })
@@ -146,6 +185,8 @@ app.post('/send-command', async (req, res, next) => {
             }
         } else {
             res.json({ message: 'Command not found' })
+            req.flash('console_response', "[ERROR] Command isn't found")
+            res.redirect('/')
             return
         }
 
@@ -164,6 +205,33 @@ app.post('/send-command', async (req, res, next) => {
     }
 })
 
-app.listen(process.env.APP_PORT, () => {
-    console.log("Server started on port " + process.env.APP_PORT);
+async function GenerateRootAccount() {
+
+    const userExist = await User.find({ username: "root" })
+
+    if ( userExist.length > 0 ) {
+        return
+    }
+
+    let generatedPassword = GenKey(32)
+
+
+    console.log("ROOT ACCOUNT PASSWORD:")
+    console.log("user: root")
+    console.log("pass: " + generatedPassword)
+    console.log("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+    console.log("SAVE THIS")
+    
+    User.register(
+        new User( {username: "root", type: "root"} ),
+        generatedPassword
+    )
+
+}
+
+GenerateRootAccount()
+
+
+app.listen(3000, () => {
+    console.log("Server started on port " + 3000);
 });

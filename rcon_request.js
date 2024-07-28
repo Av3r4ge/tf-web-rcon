@@ -1,25 +1,25 @@
 const { promisify } = require('util');
 const rcon = require('rcon')
-const client = new rcon(process.env.RCON_ADDRESS, process.env.RCON_PORT, process.env.RCON_PASSWORD, {tcp: true})
+const fs = require('fs')
+
+const serverConfig = require('./config/server.json');
+
+var missingConfig = false
+
+if ( !serverConfig.RCON_ADDRESS || !serverConfig.RCON_PORT || !serverConfig.RCON_PASSWORD ) {
+    console.warn("\n[WARNING] You did not set the rcon config in config/server.json")
+    console.warn("The app will not work without it! \n")
+    missingConfig = true
+} else {
+    const client = new rcon(pserverConfig.RCON_ADDRESS, serverConfig.RCON_PORT, serverConfig.RCON_PASSWORD, {tcp: true})
+}
+
 
 var self = {
     isAuthed: false,
 }
 
 var commandQueue = []
-
-self.AuthLevel = function(userlevel) {
-    switch(userlevel) {
-        case "root": 
-            return 3;
-        case "admin":
-            return 2
-        case "user":
-            return 1
-        default:
-            return -1
-    }
-}
 
 self.GetCommand = function(ctype) {
 
@@ -43,6 +43,8 @@ self.GetCommand = function(ctype) {
     }
 
 }
+
+if (!missingConfig) {
 
 self.AwaitConsoleReponse = async function() {
     return new Promise((resolve) => {
@@ -87,4 +89,6 @@ client.on('server', (response) => {
 })
 
 client.connect()
+}
+
 module.exports = self
