@@ -7,13 +7,12 @@ const serverConfig = require('./config/server.json');
 var missingConfig = false
 
 if ( !serverConfig.RCON_ADDRESS || !serverConfig.RCON_PORT || !serverConfig.RCON_PASSWORD ) {
-    console.warn("\n[WARNING] You did not set the rcon config in config/server.json")
-    console.warn("The app will not work without it! \n")
+    console.warn("[WARNING] You did not set the rcon config in config/server.json")
+    console.warn("The app will not work without it!")
     missingConfig = true
 } else {
-    const client = new rcon(pserverConfig.RCON_ADDRESS, serverConfig.RCON_PORT, serverConfig.RCON_PASSWORD, {tcp: true})
+    const client = new rcon(serverConfig.RCON_ADDRESS, serverConfig.RCON_PORT, serverConfig.RCON_PASSWORD, {tcp: true})
 }
-
 
 var self = {
     isAuthed: false,
