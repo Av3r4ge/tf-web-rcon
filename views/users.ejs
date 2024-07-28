@@ -21,19 +21,19 @@
                <div class="modal-body">
                   <div class="form-group mb-3">
                      <label for="username">Account Username</label>
-                     <input type="username" class="form-control"  aria-describedby="emailHelp" placeholder="username">
+                     <input type="username" class="form-control" name="username">
                   </div>
                   <div class="form-group mb-3">
                      <label for="password">Password</label>
-                     <input type="password" class="form-control" placeholder="password">
+                     <input type="password" class="form-control" placeholder="password" name="password">
                   </div>
 
                   <div class="form-group">
                      <label for="type">Account Type</label>
-                     <select class="form-select" aria-label="Account Type">
+                     <select class="form-select" aria-label="Account Type" name="type">
                         <option value="user">user</option>
                         <option value="admin">admin</option>
-                        <option value="admin">root</option>
+                        <option value="manager">manager</option>
                      </select>
                   </div>
 
@@ -104,16 +104,26 @@
                         <td> <%= users[i].type %> </td>
 
                         <td>
-                           <form action="/account/change-pass">
+                           <!--<form action="/account/change-pass" method="POST">
                               <button class="btn btn-primary">
                                  Change Password
                              </button>
+                           </form>-->
+                           <% if (users[i].isDisabled) { %>
+                           <form action="/account/enable-account" method="POST">
+                              <input type="hidden" name="objectid" value="<%= users[i].username %>" >
+                              <button type="submit" class="btn btn-success">
+                                 Enable Account
+                              </button>
                            </form>
-                           <form action="/account/delete-account">
-                           <button class="btn btn-danger">
-                               Delete Account
-                           </button>
-                           </form>
+                           <% } else { %>
+                              <form action="/account/delete-account" method="POST">
+                                 <input type="hidden" name="objectid" value="<%= users[i].username %>" >
+                                 <button type="submit" class="btn btn-danger">
+                                    Disable Account
+                                 </button>
+                              </form>
+                           <% } %>
                        </td>
                      </tr>
                   <% } %>
@@ -125,10 +135,6 @@
                      Create New User
                   </button>
               </div>
-
-
-             
-
          </div>
       </main>
    </body>

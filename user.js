@@ -14,6 +14,12 @@ const User = new Schema({
         type: String,
         required: true,
         default: 'user'
+    },
+
+    isDisabled: {
+        type: Boolean,
+        required: true,
+        default: false
     }
 
 })

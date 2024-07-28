@@ -18,12 +18,10 @@ const perms = require('./permissions')
 
 function GenKey(length) {
     let generatedKey = "";
-
     const validChars = "0123456789" +
         "abcdefghijklmnopqrstuvwxyz" +
         "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
         ",.-{}+!\"#$%/()=?";
-
     for (let i = 0; i < length; i++) {
         let randomNumber = crypto.getRandomValues(new Uint32Array(1))[0]
         randomNumber = randomNumber / 0x100000000;
@@ -31,8 +29,6 @@ function GenKey(length) {
 
         generatedKey += validChars[randomNumber]
     }
- 
-
     return generatedKey
 }
 
@@ -58,6 +54,11 @@ app.use(passport.session());
 
 function isAuthed(req, res, next) {
     if (req.isAuthenticated()) { 
+        if (req.user.isDisabled) {
+            res.redirect('/disabled')
+            return
+        }
+
         return next()
     } else {
         res.redirect('/login')
@@ -87,6 +88,14 @@ app.get('/login', isNotAuthed, (req, res) => {
 
 // todo: change the way we're loading users. Ideally don't load all of them!
 app.get('/users', isAuthed, async (req, res) => {
+
+    const authLevel = perms.AuthLevel(req.user.type)
+
+    if ( authLevel < 3 ) {
+        res.redirect('/')
+        return
+    }
+
     await User.find().then(users => {
         res.render('users', {name: req.user.username, type: req.user.type, users: users})
     }).catch(err => {
@@ -99,13 +108,24 @@ app.get('/logs', isAuthed, (req, res) => {
     res.render('logs')
 })
 
-// todo make authenticate!
-app.post('/account/register', function (req, res) {
+app.get('/disabled', (req, res) => {
 
+    if ( req.isAuthenticated() ) {
+        res.render('disabled')
+    } 
+
+})
+
+app.post('/account/register', function (req, res) {
     if (req.isAuthenticated()) {
+        // at some point check what user type is being submitted and validate it
+        // this is fine for now though
         const authLevel = perms.AuthLevel(req.user.type)
-        
-        console.log(authLevel)
+
+        if (req.user.isDisabled) { 
+            res.json({ message: 'Your account is disabled.' })
+            return
+        }
 
         if ( authLevel >= 3 ) {
             User.register(
@@ -119,38 +139,120 @@ app.post('/account/register', function (req, res) {
                     }
                 }
             )
+        } else {
+            res.json({ message: 'You do not have permission to do this!' })
         }
 
     } else {
         res.json({ message: 'You are not authenticated' })
     }
-
 })
 
+async function disableAccount(username) {
+    const foundUser = await User.find({ username: username })
+
+    if ( foundUser[0] && foundUser[0].type != "root" ) {
+        foundUser[0].isDisabled = true
+        foundUser[0].save()
+        return true
+    }
+
+    return false
+}
+
+async function enableAccount(username) {
+    const foundUser = await User.find({ username: username })
+
+    if ( foundUser[0] && foundUser[0].type != "root" ) {
+        foundUser[0].isDisabled = false
+        foundUser[0].save()
+        return true
+    }
+
+    return false
+}
+
+app.post('/account/enable-account', function (req, res) {
+    if (req.isAuthenticated()) {
+        const authLevel = perms.AuthLevel(req.user.type)
+
+        if (req.user.isDisabled) { 
+            res.json({ message: 'Your account is disabled.' })
+            return
+        }
+
+        if ( !authLevel >= 3 ) {
+            res.redirect('/users')
+            return
+        }
+
+        try {
+            let success = enableAccount( req.body.objectid )
+            res.redirect('/users')
+        } catch (err) {
+            console.log(err)
+            res.redirect('/users')
+        }
+
+    } else {
+        res.json({ message: 'You are not authenticated' })
+    }    
+})
+
+app.post('/account/delete-account', function (req, res) {
+    if (req.isAuthenticated()) {
+        const authLevel = perms.AuthLevel(req.user.type)
+
+        if (req.user.isDisabled) { 
+            res.json({ message: 'Your account is disabled.' })
+            return
+        }
+
+        if ( !authLevel >= 3 ) {
+            res.redirect('/users')
+            return
+        }
+
+        try {
+            let success = disableAccount( req.body.objectid )
+            res.redirect('/users')
+        } catch (err) {
+            console.log(err)
+            res.redirect('/users')
+        }
+
+    } else {
+        res.json({ message: 'You are not authenticated' })
+    }    
+})
 
 app.post('/login', passport.authenticate('local', { 
     failureRedirect: '/login-failure', 
     successRedirect: '/'
   }), (err, req, res, next) => {
-    if (err) next(err);
+    if (err) next(err)
 });
 
 app.post('/logout', (req, res, next) => {
     req.logout(function(err) {
         if (err) { return next(err); }
     });
-    res.redirect('/login');
+    res.redirect('/login')
 });
 
 app.get('/login-failure', (req, res, next) => {
     console.log(req.session);
 
     req.flash('login_status', "Incorrect Login Credentials")
-    res.redirect('/login');
+    res.redirect('/login')
 });
 
 app.post('/send-command', async (req, res, next) => {
     if (req.isAuthenticated()) {
+        if (req.user.isDisabled) { 
+            res.json({ message: 'Your account is disabled.' })
+            return
+        }
 
         if ( !rcon.isAuthed ) {
             req.flash('console_response', "[ERROR] RCON is not authed, please check if configuration is correct")
@@ -199,14 +301,12 @@ app.post('/send-command', async (req, res, next) => {
             req.flash('console_response', "Error sending response, Timeout!")
             res.redirect('/')
         }
-
     } else {
         res.json({ message: 'You are not authenticated' })
     }
 })
 
 async function GenerateRootAccount() {
-
     const userExist = await User.find({ username: "root" })
 
     if ( userExist.length > 0 ) {
@@ -214,7 +314,6 @@ async function GenerateRootAccount() {
     }
 
     let generatedPassword = GenKey(32)
-
 
     console.log("ROOT ACCOUNT PASSWORD:")
     console.log("user: root")
@@ -226,12 +325,9 @@ async function GenerateRootAccount() {
         new User( {username: "root", type: "root"} ),
         generatedPassword
     )
-
 }
 
 GenerateRootAccount()
-
-
 app.listen(3000, () => {
     console.log("Server started on port " + 3000);
 });
